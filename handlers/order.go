@@ -2,12 +2,14 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/guhstanley/go-chi-ms-orders/model"
 	"github.com/guhstanley/go-chi-ms-orders/repository/order"
@@ -99,7 +101,32 @@ func (o *Order) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (o *Order) GetById(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("Get an order by id")
+	idParam := chi.URLParam(r, "id")
+
+	const base = 10
+	const bitSize = 64
+
+	orderID, err := strconv.ParseUint(idParam, base, bitSize)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	obj, err := o.Repo.FindByID(r.Context(), orderID)
+	if errors.Is(err, order.ErrNotExist) {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	} else if err != nil {
+		fmt.Println("failed to find by id:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(obj); err != nil {
+		fmt.Println("failed to marshal:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 }
 
 func (o *Order) UpdateById(w http.ResponseWriter, r *http.Request) {
